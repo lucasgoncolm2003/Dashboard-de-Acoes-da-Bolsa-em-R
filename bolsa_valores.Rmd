@@ -1,0 +1,111 @@
+---
+title: "Ações da Bolsa"
+author: "Lucas Gonçalves de Oliveira Martins"
+date: "2023-01-11"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyquant) # Cotações
+library(dplyr) # Manipulações
+library(ggplot2) # Gráficos
+library(plotly) # Gráficos Interativos
+library(DT) # Tabelas de Dados
+
+prices <- read.csv("C:/Users/lucas/OneDrive/Documentos/prices.csv") %>%
+  mutate(date = as.Date(date))
+
+tabela_periodo <- data.frame( # Criação de Tabela Período x Dias
+  periodo = c("1M", "6M", "1A", "10A"),
+  dias = c(30, 180, 365, 3650)
+)
+
+colors = c(
+  "VALE3" = "green", "BRAP4" = "blue", "RENT3" = "grey",
+  "GGBR4" = "pink", "NTCO3" = "orange", "CIEL3" = "black",
+  "SANB11" = "purple", "TOTS3" = "cyan", "SULA11" = "yellow"
+)
+```
+
+Column {.sidebar}
+----------------------------------------------------------------------------------
+
+```{r}
+selectInput(
+  "acao", label = "Escolha a sua Ação",
+  choices = c(
+    "VALE3", "BRAP4", "RENT3", "GGBR4",
+    "NTCO3", "CIEL3", "SANB11", "TOTS3", "SULA11"
+))
+selectInput(
+  "periodo", label = "Escolha o Período",
+  choices = c("1M", "6M", "1A", "10A")
+)
+```
+
+Row {data-width=500}
+----------------------------------------------------------------------------------
+
+### Tendência
+```{r}
+renderPlotly({
+  periodo <- Sys.Date() - filter(tabela_periodo, periodo == input$periodo)$dias
+  # Sys.Date(): Data Atual do Sistema
+  # input$periodo: retorna o Período Escolhido
+  prices %>%
+    filter(date >= periodo, symbol == input$acao) %>%
+    # Filtra para encontrar Datas Posteriores
+    ggplot() +
+    aes(x= date, y = adjusted) + # Eixo x é Data e y é Cotação
+    geom_line() +
+    labs(x = "", y = "Cotação") +
+    ggtitle(label = input$acao) + # Nome da Ação
+    theme(
+      panel.background = element_blank(), # Background
+      plot.title = element_text(size=22) # Tamanho do Título
+    )
+})
+```
+### Todas as Tendências
+```{r}
+renderPlotly({
+  periodo <- Sys.Date() - filter(tabela_periodo, periodo == input$periodo)$dias
+  prices %>%
+    filter(date >= periodo) %>%
+    ggplot() +
+    aes(x= date, y = adjusted, color = symbol) +
+    geom_line(size = 1.1) + # Linhas Finas
+    scale_color_manual(values = colors) +
+    labs(x = "", y = "Cotação", color = "Ação") +
+    theme(panel.background = element_blank())
+})
+```
+
+Row {data-width=500}
+----------------------------------------------------------------------------------
+### Cotações
+```{r}
+renderDataTable({
+  periodo <- Sys.Date() - filter(tabela_periodo, periodo == input$periodo)$dias
+
+  prices %>% filter(date >= periodo, symbol == input$acao) %>%
+    mutate(across(where(is.double), round, digits = 2)) %>%
+    arrange(desc(date)) %>% 
+    rename(
+      Ação = symbol,
+      Data = date,
+      Abertura = open,
+      Máximo = high,
+      Mínimo = low,
+      Fechamento = close,
+      Volume = volume,
+      Ajustado = adjusted
+    ) %>%
+    datatable(rownames = FALSE)
+})
+```
